@@ -884,6 +884,7 @@ def test_rig4(rig, landmark_positions):
     landmark_rig_mapping['right_feet'] = [29]
 
     landmark_rig_mapping['pelvis'] = [23, 24]
+    landmark_rig_mapping['right_clavicle'] = [23, 24, 11, 12]
     landmark_rig_mapping['left_clavicle'] = [23, 24, 11, 12]
     landmark_rig_mapping['neck'] = [9, 10, 11, 12]
     landmark_rig_mapping['head'] = [9, 10]
@@ -961,7 +962,7 @@ def main():
         min_detection_confidence = 0.5, 
         min_tracking_confidence = 0.5)
 
-    cap = cv.VideoCapture('d:\\test\\mediapipe\\4.mp4')
+    cap = cv.VideoCapture('d:\\test\\mediapipe\\1.mp4')
 
     # load rig
     rig = load_rig('c:\\Users\\dingwings\\demo-models\\media-pipe\\test-rig-5.gltf')
@@ -1062,6 +1063,11 @@ def main():
             landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
         #cv.imwrite('d:\\test\\mediapipe\\annotated_image' + str(index) + '.png', annotated_image)
         
+        # back to identity since we're traversing the entire rig every frame for the animation matrices
+        for joint in rig.joints:
+            joint.total_anim_matrix.identity()
+            joint.anim_matrix.identity()
+
         cv.imshow('frame', annotated_image)
 
         frame_index += 1
