@@ -876,12 +876,12 @@ def test_rig4(rig, landmark_positions):
     landmark_rig_mapping['left_thigh'] = [24]
     landmark_rig_mapping['left_leg'] = [26]
     landmark_rig_mapping['left_ankle'] = [28]
-    landmark_rig_mapping['left_feet'] = [30]
+    landmark_rig_mapping['left_foot'] = [32]
 
     landmark_rig_mapping['right_thigh'] = [23]
     landmark_rig_mapping['right_leg'] = [25]
     landmark_rig_mapping['right_ankle'] = [27]
-    landmark_rig_mapping['right_feet'] = [29]
+    landmark_rig_mapping['right_foot'] = [31]
 
     landmark_rig_mapping['pelvis'] = [23, 24]
     landmark_rig_mapping['right_clavicle'] = [23, 24, 11, 12]
@@ -962,10 +962,14 @@ def main():
         min_detection_confidence = 0.5, 
         min_tracking_confidence = 0.5)
 
-    cap = cv.VideoCapture('d:\\test\\mediapipe\\1.mp4')
+    cap = cv.VideoCapture('d:\\test\\mediapipe\\4.mp4')
 
     # load rig
-    rig = load_rig('c:\\Users\\dingwings\\demo-models\\media-pipe\\test-rig-5.gltf')
+    rig = load_rig('c:\\Users\\dingwings\\demo-models\\media-pipe\\test-rig-6.gltf')
+
+    # reset key-frame file
+    file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'w')
+    file.close()
 
     frame_index = 0
     while cap.isOpened():
@@ -1033,21 +1037,26 @@ def main():
         #output_debug_rig(rig)
 
         
-        # debug script to rotate the joints in blender 3d
-        print('obj = bpy.data.objects[\'root\']')
-        for key in joint_anim_local_rotation_axis_angles:
-            axis_angle = joint_anim_local_rotation_axis_angles[key]
-            if axis_angle[1] > 0.0:
-                print('bone = obj.pose.bones[\'{}\']'.format(key))
-                print('bone.rotation_mode = \'AXIS_ANGLE\'')
-                print('bone.rotation_axis_angle = [{}, {}, {}, {}]'.format(
-                    axis_angle[1],
-                    axis_angle[0].x,
-                    axis_angle[0].y,
-                    axis_angle[0].z
-                ))
-        
-        print('\n\n\n')
+        # debug script to rotate the joints in blender 3d and set key frame every 5 frames
+        if frame_index % 5 == 0:
+            print('bpy.ops.object.mode_set(mode=\'POSE\')', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+            print('obj = bpy.data.objects[\'root\']', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+            for key in joint_anim_local_rotation_axis_angles:
+                axis_angle = joint_anim_local_rotation_axis_angles[key]
+                if axis_angle[1] > 0.0:
+                    print('bone = obj.pose.bones[\'{}\']'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                    print('bone.rotation_mode = \'AXIS_ANGLE\'', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                    print('bone.rotation_axis_angle = [{}, {}, {}, {}]'.format(
+                        axis_angle[1],
+                        axis_angle[0].x,
+                        axis_angle[0].y,
+                        axis_angle[0].z
+                    ), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                    print('obj.data.bones[\'{}\'].select = True'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                    print('bone.keyframe_insert(data_path = \'rotation_axis_angle\', frame = {})'.format(frame_index + 1), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                    print('obj.data.bones[\'{}\'].select = False'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+
+            print('\n\n\n', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
 
         #plt.imshow(cv.cvtColor(annotated_image, cv.COLOR_BGR2RGB))
         
@@ -1069,6 +1078,9 @@ def main():
             joint.anim_matrix.identity()
 
         cv.imshow('frame', annotated_image)
+
+        if frame_index >= 240:
+            print('\n')
 
         frame_index += 1
         key = cv.waitKey(1)
