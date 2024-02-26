@@ -9,3 +9,5 @@ Compute joint orientation, outputting 4x4 animation matrix amd axis-angle rotati
 
 # ADDENDUM: need to chain up animation matrices till the current joint and use it for step 2 instead of total bind matrix of the bone in the rig
 # this ensures that the rotation will be applied on the animated joint pose orientation, not the bind joint pose orientation 
+
+![alt text](https://github.com/wdings23/mediapipe_pose/blob/main/screenshot0.jpg?raw=true)
