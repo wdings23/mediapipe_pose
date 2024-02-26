@@ -784,7 +784,12 @@ def traverse_for_anim_matrix(
 
     # check if this joint needs to update its anim matrix
     parent_joint = curr_joint.parent
-    if parent_joint != None and curr_joint.is_root_joint == False and curr_joint.name in landmark_rig_mapping and parent_joint.name in landmark_rig_mapping:
+    if (parent_joint != None and 
+       curr_joint.is_root_joint == False and 
+       curr_joint.name in landmark_rig_mapping and 
+       parent_joint.name in landmark_rig_mapping and
+       parent_joint.name != 'pelvis'):
+
         local_anim_rotation_matrix, local_anim_rotation_axis, local_anim_rotation_angle = compute_joint_local_rotation_anim_matrix(
             curr_joint = curr_joint,
             landmark_positions = landmark_positions,
@@ -806,6 +811,32 @@ def traverse_for_anim_matrix(
         parent_joint.total_anim_matrix = parent_joint_total_anim_matrix
 
         local_anim_rotation_axis_angles[parent_joint.name] = [local_anim_rotation_axis, local_anim_rotation_angle]
+
+    # special case for rotating pelvis
+    if curr_joint.name == 'pelvis':
+        axis_x = float3(1.0, 0.0, 0.0)
+        up = float3(0.0, 1.0, 0.0)
+        
+        # hip vector 
+        hip_v = landmark_positions[landmark_rig_mapping[curr_joint.name][0]] - landmark_positions[landmark_rig_mapping[curr_joint.name][1]]
+        hip_v_normalized = float3.normalize(hip_v)
+        if math.fabs(hip_v.y) > math.fabs(hip_v.z) and math.fabs(hip_v.y) > math.fabs(hip_v.x):
+            up = float3(0.0, 0.0, 1.0)
+        
+        # hips' basis
+        normal = float3.normalize(float3.cross(hip_v, up))
+        tangent = float3.normalize(float3.cross(up, normal))
+        binormal = float3.normalize(float3.cross(normal, tangent))
+
+        # plane axis to compute angle of rotation
+        plane_v = float3(0.0, 0.0, 1.0)
+        if math.fabs(binormal.y) > math.fabs(binormal.x) and math.fabs(binormal.y) > math.fabs(binormal.z):
+            plane_v = float3(1.0, 0.0, 0.0)
+        angle = math.acos(float3.dot(hip_v_normalized, plane_v))
+
+        # apply rotation
+        curr_joint.anim_matrix = float4x4.from_angle_axis(binormal, angle)
+        local_anim_rotation_axis_angles[curr_joint.name] = [binormal, angle]
 
     # compute the total anim matrix for the joint
     curr_joint.total_anim_matrix = float4x4.concat_matrices([
@@ -884,6 +915,9 @@ def test_rig4(rig, landmark_positions):
     landmark_rig_mapping['right_foot'] = [31]
 
     landmark_rig_mapping['pelvis'] = [23, 24]
+    landmark_rig_mapping['left_pelvis'] = [23, 24]
+    landmark_rig_mapping['right_pelvis'] = [23, 24]
+
     landmark_rig_mapping['right_clavicle'] = [23, 24, 11, 12]
     landmark_rig_mapping['left_clavicle'] = [23, 24, 11, 12]
     landmark_rig_mapping['neck'] = [9, 10, 11, 12]
@@ -962,7 +996,7 @@ def main():
         min_detection_confidence = 0.5, 
         min_tracking_confidence = 0.5)
 
-    cap = cv.VideoCapture('d:\\test\\mediapipe\\4.mp4')
+    cap = cv.VideoCapture('d:\\test\\mediapipe\\5.mp4')
 
     # load rig
     rig = load_rig('c:\\Users\\dingwings\\demo-models\\media-pipe\\test-rig-6.gltf')
@@ -1079,7 +1113,7 @@ def main():
 
         cv.imshow('frame', annotated_image)
 
-        if frame_index >= 240:
+        if frame_index >= 600:
             print('\n')
 
         frame_index += 1
