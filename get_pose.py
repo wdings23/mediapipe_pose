@@ -217,6 +217,73 @@ class float4x4:
 
     ##
     @staticmethod
+    def to_angle_axis(m):
+        epsilon = 0.01
+        epsilon2 = 0.1
+        
+        if ((math.fabs(m.entries[0]-m.entries[4])< epsilon)
+        and (math.fabs(m.entries[2]-m.entries[8])< epsilon)
+        and (math.fabs(m.entries[6]-m.entries[9])< epsilon)): 
+            
+            if ((math.abs(m.entries[1]+m.entries[4]) < epsilon2)
+            and (math.abs(m.entries[2]+m.entries[8]) < epsilon2)
+            and (math.abs(m.entries[6]+m.entries[9]) < epsilon2)
+            and (math.abs(m.entries[0]+m.entries[5]+m.entries[10]-3) < epsilon2)):
+                return [0,1,0,0]
+            
+            angle = math.PI
+            xx = (m.entries[0]+1)/2
+            yy = (m.entries[5]+1)/2
+            zz = (m.entries[10]+1)/2
+            xy = (m.entries[1]+m.entries[4])/4
+            xz = (m.entries[2]+m.entries[8])/4
+            yz = (m.entries[6]+m.entries[9])/4
+            if ((xx > yy) and (xx > zz)):
+                if (xx < epsilon):
+                    x = 0
+                    y = 0.7071
+                    z = 0.7071
+                else:
+                    x = math.sqrt(xx)
+                    y = xy/x
+                    z = xz/x
+                
+            elif (yy > zz):
+                if (yy< epsilon):
+                    x = 0.7071
+                    y = 0
+                    z = 0.7071
+                else:
+                    y = math.sqrt(yy)
+                    x = xy/y
+                    z = yz/y
+            else:
+                if (zz< epsilon):
+                    x = 0.7071
+                    y = 0.7071
+                    z = 0
+                else:
+                    z = math.sqrt(zz)
+                    x = xz/z
+                    y = yz/z
+
+            return [angle, x, y, z]
+        
+        s = math.sqrt((m.entries[9] - m.entries[6])*(m.entries[9] - m.entries[6])
+            +(m.entries[2] - m.entries[8])*(m.entries[2] - m.entries[8])
+            +(m.entries[4] - m.entries[1])*(m.entries[4] - m.entries[1]))
+        if (math.fabs(s) < 0.001):
+             s=1
+            
+        angle = math.acos(( m.entries[0] + m.entries[5] + m.entries[10] - 1)/2)
+        x = (m.entries[9] - m.entries[6])/s
+        y = (m.entries[2] - m.entries[8])/s
+        z = (m.entries[4] - m.entries[1])/s
+
+        return [angle, x, y, z]
+
+    ##
+    @staticmethod
     def invert(m):
         inv = [
             1.0, 0.0, 0.0, 0.0, 
@@ -814,30 +881,27 @@ def traverse_for_anim_matrix(
 
     # special case for rotating pelvis
     if curr_joint.name == 'pelvis':
-        axis_x = float3(1.0, 0.0, 0.0)
-        up = float3(0.0, 1.0, 0.0)
+        # rotation in y axis
+        rotation_axis_y = float3.normalize(landmark_positions[23] - landmark_positions[24])
+        plane_v = float3(1.0, 0.0, 0.0)
+        angle_x = math.acos(float3.dot(rotation_axis_y, plane_v))
+        rotation_matrix_y = float4x4.from_angle_axis(float3(0.0, 1.0, 0.0), angle_x)
+
+        # rotation in x axis
+        rotation_axis_x = float3.normalize(landmark_positions[12] - landmark_positions[24])
+        plane_v = float3(0.0, 1.0, 0.0)
+        angle_y = math.cos(float3.dot(rotation_axis_x, plane_v))
+        rotation_matrix_x = float4x4.from_angle_axis(float3(1.0, 0.0, 0.0), angle_y)
+
+        curr_joint.anim_matrix = float4x4.concat_matrices([
+            rotation_matrix_y,
+            rotation_matrix_x
+        ])
+
+        axis_angle_array = float4x4.to_angle_axis(curr_joint.anim_matrix)
+        local_anim_rotation_axis_angles[curr_joint.name] = [float3(axis_angle_array[0], axis_angle_array[1], axis_angle_array[2]), axis_angle_array[3]]
+
         
-        # hip vector 
-        hip_v = landmark_positions[landmark_rig_mapping[curr_joint.name][0]] - landmark_positions[landmark_rig_mapping[curr_joint.name][1]]
-        hip_v_normalized = float3.normalize(hip_v)
-        if math.fabs(hip_v.y) > math.fabs(hip_v.z) and math.fabs(hip_v.y) > math.fabs(hip_v.x):
-            up = float3(0.0, 0.0, 1.0)
-        
-        # hips' basis
-        normal = float3.normalize(float3.cross(hip_v, up))
-        tangent = float3.normalize(float3.cross(up, normal))
-        binormal = float3.normalize(float3.cross(normal, tangent))
-
-        # plane axis to compute angle of rotation
-        plane_v = float3(0.0, 0.0, 1.0)
-        if math.fabs(binormal.y) > math.fabs(binormal.x) and math.fabs(binormal.y) > math.fabs(binormal.z):
-            plane_v = float3(1.0, 0.0, 0.0)
-        angle = math.acos(float3.dot(hip_v_normalized, plane_v))
-
-        # apply rotation
-        curr_joint.anim_matrix = float4x4.from_angle_axis(binormal, angle)
-        local_anim_rotation_axis_angles[curr_joint.name] = [binormal, angle]
-
     # compute the total anim matrix for the joint
     curr_joint.total_anim_matrix = float4x4.concat_matrices([
         parent_joint_total_anim_matrix,
@@ -1077,18 +1141,18 @@ def main():
             print('obj = bpy.data.objects[\'root\']', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
             for key in joint_anim_local_rotation_axis_angles:
                 axis_angle = joint_anim_local_rotation_axis_angles[key]
-                if axis_angle[1] > 0.0:
-                    print('bone = obj.pose.bones[\'{}\']'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
-                    print('bone.rotation_mode = \'AXIS_ANGLE\'', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
-                    print('bone.rotation_axis_angle = [{}, {}, {}, {}]'.format(
-                        axis_angle[1],
-                        axis_angle[0].x,
-                        axis_angle[0].y,
-                        axis_angle[0].z
-                    ), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
-                    print('obj.data.bones[\'{}\'].select = True'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
-                    print('bone.keyframe_insert(data_path = \'rotation_axis_angle\', frame = {})'.format(frame_index + 1), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
-                    print('obj.data.bones[\'{}\'].select = False'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                
+                print('bone = obj.pose.bones[\'{}\']'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                print('bone.rotation_mode = \'AXIS_ANGLE\'', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                print('bone.rotation_axis_angle = [{}, {}, {}, {}]'.format(
+                    axis_angle[1],
+                    axis_angle[0].x,
+                    axis_angle[0].y,
+                    axis_angle[0].z
+                ), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                print('obj.data.bones[\'{}\'].select = True'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                print('bone.keyframe_insert(data_path = \'rotation_axis_angle\', frame = {})'.format(frame_index + 1), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                print('obj.data.bones[\'{}\'].select = False'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
 
             print('\n\n\n', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
 
@@ -1114,7 +1178,7 @@ def main():
         cv.imshow('frame', annotated_image)
 
         if frame_index >= 600:
-            print('\n')
+            break
 
         frame_index += 1
         key = cv.waitKey(1)
