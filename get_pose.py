@@ -662,7 +662,8 @@ def output_debug_blender_3d_spheres(
 def compute_joint_local_rotation_anim_matrix(
     curr_joint, 
     landmark_positions,
-    landmark_rig_mapping):
+    landmark_rig_mapping,
+    rig_to_landmark_pct):
 
     # 1) get the length of the bones from the landmark
     # 2) get the total anim matrix of the bones in the rig
@@ -679,23 +680,57 @@ def compute_joint_local_rotation_anim_matrix(
     curr_joint_landmark_indices = landmark_rig_mapping[curr_joint.name]
     parent_joint_landmark_indices = landmark_rig_mapping[parent_joint.name]
 
-    # get midpoint of parent joint larndmark position
+    # get parent joint landmark position, either midpoint or with given scaled position
     landmark_parent_joint_position = float3(0.0, 0.0, 0.0)
-    for index in parent_joint_landmark_indices:
-        landmark_position = landmark_positions[index]
-        landmark_parent_joint_position += landmark_position
-    landmark_parent_joint_position.x /= float(len(parent_joint_landmark_indices))
-    landmark_parent_joint_position.y /= float(len(parent_joint_landmark_indices))
-    landmark_parent_joint_position.z /= float(len(parent_joint_landmark_indices))
+    if(parent_joint.name in rig_to_landmark_pct):
+        # user given scale values for the landmarks, apply the scale and normalize position with total scale values
+        landmark_pct = rig_to_landmark_pct[parent_joint.name]
+        total_parent_landmark_pct = 0.0
+        
+        total_scaled_parent_landmark_joint_positions = float3(0.0, 0.0, 0.0) 
+        for index in range(0, len(parent_joint_landmark_indices)):
+            parent_joint_landmark_index = parent_joint_landmark_indices[index]
+            parent_landmark_position = landmark_positions[parent_joint_landmark_index]
+            scale_value = landmark_pct[index]
+            scaled_parent_landmark_position = parent_landmark_position * scale_value
+            total_scaled_parent_landmark_joint_positions += scaled_parent_landmark_position
+            total_parent_landmark_pct += landmark_pct[index]
+        landmark_parent_joint_position = float3.scalar_multiply(total_scaled_parent_landmark_joint_positions, 1.0 / total_parent_landmark_pct)
+    else:
+        # get midpoint of parent joint landmark position
+        for index in parent_joint_landmark_indices:
+            landmark_position = landmark_positions[index]
+            landmark_parent_joint_position += landmark_position
+        landmark_parent_joint_position.x /= float(len(parent_joint_landmark_indices))
+        landmark_parent_joint_position.y /= float(len(parent_joint_landmark_indices))
+        landmark_parent_joint_position.z /= float(len(parent_joint_landmark_indices))
 
-    # get midpoint of joint landmark position
-    landmark_joint_position = float3(0.0, 0.0, 0.0) 
-    for index in curr_joint_landmark_indices:
-        landmark_position = landmark_positions[index]
-        landmark_joint_position += landmark_position
-    landmark_joint_position.x /= len(curr_joint_landmark_indices)
-    landmark_joint_position.y /= len(curr_joint_landmark_indices)
-    landmark_joint_position.z /= len(curr_joint_landmark_indices)
+    
+    # get current joint landmark position, either midpoint or with given scaled position
+    landmark_joint_position = float3(0.0, 0.0, 0.0)
+    if(curr_joint.name in rig_to_landmark_pct):
+        # user given scale values for the landmarks, apply the scale and normalize position with total scale values
+        landmark_pct = rig_to_landmark_pct[curr_joint.name]
+        total_landmark_pct = 0.0
+        
+        total_scaled_landmark_joint_positions = float3(0.0, 0.0, 0.0) 
+        for index in range(0, len(curr_joint_landmark_indices)):
+            curr_joint_landmark_index = curr_joint_landmark_indices[index]
+            landmark_position = landmark_positions[curr_joint_landmark_index]
+            scale_value = landmark_pct[index]
+            scaled_landmark_position = landmark_position * scale_value
+            total_scaled_landmark_joint_positions += scaled_landmark_position
+            total_landmark_pct += landmark_pct[index]
+        landmark_joint_position = float3.scalar_multiply(total_scaled_landmark_joint_positions, 1.0 / total_landmark_pct)
+    else:
+
+        # just get midpoint of joint landmark position
+        for index in curr_joint_landmark_indices:
+            landmark_position = landmark_positions[index]
+            landmark_joint_position += landmark_position
+        landmark_joint_position.x /= len(curr_joint_landmark_indices)
+        landmark_joint_position.y /= len(curr_joint_landmark_indices)
+        landmark_joint_position.z /= len(curr_joint_landmark_indices)
 
     # length of the bones from landmark
     landmark_parent_to_child_length = float3.length(landmark_joint_position - landmark_parent_joint_position)
@@ -841,7 +876,8 @@ def traverse_for_anim_matrix(
     curr_joint,
     landmark_positions,
     landmark_rig_mapping,
-    local_anim_rotation_axis_angles):
+    local_anim_rotation_axis_angles,
+    rig_to_landmark_pct):
 
     # parent joint total anim matrix, identity if no parent
     parent_joint_total_anim_matrix = float4x4()
@@ -860,7 +896,8 @@ def traverse_for_anim_matrix(
         local_anim_rotation_matrix, local_anim_rotation_axis, local_anim_rotation_angle = compute_joint_local_rotation_anim_matrix(
             curr_joint = curr_joint,
             landmark_positions = landmark_positions,
-            landmark_rig_mapping = landmark_rig_mapping)
+            landmark_rig_mapping = landmark_rig_mapping,
+            rig_to_landmark_pct = rig_to_landmark_pct)
         
         # grandparent's anim matrix 
         grandparent_total_anim_matrix = float4x4()
@@ -878,7 +915,8 @@ def traverse_for_anim_matrix(
         parent_joint.total_anim_matrix = parent_joint_total_anim_matrix
 
         local_anim_rotation_axis_angles[parent_joint.name] = [local_anim_rotation_axis, local_anim_rotation_angle]
-
+    
+    
     # special case for rotating pelvis
     if curr_joint.name == 'pelvis':
         # rotation in y axis
@@ -891,6 +929,7 @@ def traverse_for_anim_matrix(
         rotation_axis_x = float3.normalize(landmark_positions[12] - landmark_positions[24])
         plane_v = float3(0.0, 1.0, 0.0)
         angle_y = math.cos(float3.dot(rotation_axis_x, plane_v))
+        angle_y = 0.0
         rotation_matrix_x = float4x4.from_angle_axis(float3(1.0, 0.0, 0.0), angle_y)
 
         curr_joint.anim_matrix = float4x4.concat_matrices([
@@ -900,8 +939,7 @@ def traverse_for_anim_matrix(
 
         axis_angle_array = float4x4.to_angle_axis(curr_joint.anim_matrix)
         local_anim_rotation_axis_angles[curr_joint.name] = [float3(axis_angle_array[0], axis_angle_array[1], axis_angle_array[2]), axis_angle_array[3]]
-
-        
+    
     # compute the total anim matrix for the joint
     curr_joint.total_anim_matrix = float4x4.concat_matrices([
         parent_joint_total_anim_matrix,
@@ -930,7 +968,8 @@ def traverse_for_anim_matrix(
             curr_joint = child_joint, 
             landmark_positions = landmark_positions,
             landmark_rig_mapping = landmark_rig_mapping,
-            local_anim_rotation_axis_angles = local_anim_rotation_axis_angles)
+            local_anim_rotation_axis_angles = local_anim_rotation_axis_angles,
+            rig_to_landmark_pct = rig_to_landmark_pct)
 
 ##### compute_joint_local_rotation_matrices2 #####
 
@@ -938,7 +977,8 @@ def traverse_for_anim_matrix(
 def compute_joint_local_rotation_matrices2(
     rig, 
     landmark_positions,
-    landmark_rig_mapping):
+    landmark_rig_mapping,
+    rig_to_landmark_pct):
 
     local_anim_rotation_axis_angles = {}
     for root_joint in rig.root_joints:
@@ -946,7 +986,8 @@ def compute_joint_local_rotation_matrices2(
             root_joint, 
             landmark_positions, 
             landmark_rig_mapping,
-            local_anim_rotation_axis_angles)
+            local_anim_rotation_axis_angles,
+            rig_to_landmark_pct)
 
     local_anim_matrix_info = {}
     for joint in rig.joints:
@@ -961,36 +1002,45 @@ def test_rig4(rig, landmark_positions):
     
     landmark_rig_mapping = {}
     landmark_rig_mapping['left_hand'] = [16]
-    landmark_rig_mapping['left_arm'] = [14]
-    landmark_rig_mapping['left_shoulder'] = [12]
+    landmark_rig_mapping['left_forearm'] = [14]
+    landmark_rig_mapping['left_upper_arm'] = [12]
+    landmark_rig_mapping['left_shoulder'] = [11, 12]
 
     landmark_rig_mapping['right_hand'] = [15]
-    landmark_rig_mapping['right_arm'] = [13]
-    landmark_rig_mapping['right_shoulder'] = [11]
+    landmark_rig_mapping['right_forearm'] = [13]
+    landmark_rig_mapping['right_upper_arm'] = [11]
+    landmark_rig_mapping['right_shoulder'] = [11, 12]
 
     landmark_rig_mapping['left_thigh'] = [24]
     landmark_rig_mapping['left_leg'] = [26]
     landmark_rig_mapping['left_ankle'] = [28]
     landmark_rig_mapping['left_foot'] = [32]
+    landmark_rig_mapping['left_hip'] = [23, 24]
 
     landmark_rig_mapping['right_thigh'] = [23]
     landmark_rig_mapping['right_leg'] = [25]
     landmark_rig_mapping['right_ankle'] = [27]
     landmark_rig_mapping['right_foot'] = [31]
+    landmark_rig_mapping['right_hip'] = [23, 24]
 
-    landmark_rig_mapping['pelvis'] = [23, 24]
-    landmark_rig_mapping['left_pelvis'] = [23, 24]
-    landmark_rig_mapping['right_pelvis'] = [23, 24]
+    landmark_rig_mapping['pelvis'] = [23, 24, 11, 12]
 
-    landmark_rig_mapping['right_clavicle'] = [23, 24, 11, 12]
-    landmark_rig_mapping['left_clavicle'] = [23, 24, 11, 12]
-    landmark_rig_mapping['neck'] = [9, 10, 11, 12]
-    landmark_rig_mapping['head'] = [9, 10]
+    landmark_rig_mapping['neck'] = [11, 12]
+    landmark_rig_mapping['head'] = [9, 10, 11, 12]
+    landmark_rig_mapping['spine0'] = [11, 12, 24, 23]
+    landmark_rig_mapping['spine1'] = [11, 12, 24, 23]
+
+    rig_to_landmark_pct = {}
+    rig_to_landmark_pct['head'] = [1.0, 1.0, 2.0, 2.0]
+    rig_to_landmark_pct['spine0'] = [1.0, 1.0, 2.0, 2.0]
+    rig_to_landmark_pct['spine1'] = [2.0, 2.0, 1.0, 1.0]
+    rig_to_landmark_pct['pelvis'] = [4.0, 4.0, 1.0, 1.0]
 
     local_anim_matrix_info, local_anim_rotation_axis_angles = compute_joint_local_rotation_matrices2(
         rig = rig,
         landmark_positions = landmark_positions,
-        landmark_rig_mapping = landmark_rig_mapping)
+        landmark_rig_mapping = landmark_rig_mapping,
+        rig_to_landmark_pct = rig_to_landmark_pct)
 
     return local_anim_matrix_info, local_anim_rotation_axis_angles
 
@@ -1060,13 +1110,14 @@ def main():
         min_detection_confidence = 0.5, 
         min_tracking_confidence = 0.5)
 
-    cap = cv.VideoCapture('d:\\test\\mediapipe\\5.mp4')
+    cap = cv.VideoCapture('d:\\test\\mediapipe\\4.mp4')
 
     # load rig
-    rig = load_rig('c:\\Users\\dingwings\\demo-models\\media-pipe\\test-rig-6.gltf')
+    rig = load_rig('d:\\test\\mediapipe\\new-rig.gltf')
 
     # reset key-frame file
     file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'w')
+    file.write('import bpy\n')
     file.close()
 
     frame_index = 0
@@ -1074,16 +1125,9 @@ def main():
 
         # read frame of movie
         ret, frame = cap.read()
-        #image_height, image_width, _ = frame.shape
-        #plt.imshow(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
         
         # process for landmarks
         results = pose.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
-
-        # img = cv.imread('d:\\test\\openpose\\test-image-0.jpg')
-        # image_height, image_width, _ = img.shape
-        # plt.imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
-        #results = pose.process(cv.cvtColor(img, cv.COLOR_BGR2RGB))
 
         if not results.pose_landmarks:
             print('!!! no valid landmarks at frame: {} !!!'.format(frame_index))
@@ -1116,29 +1160,13 @@ def main():
                     i))
             '''
 
-        '''
-        v0 = float3.normalize(float3(103.0, 33.0, -823.0))
-        v1 = float3.normalize(float3(-8.0, -2330.2, -14.0))
-        axis = float3.normalize(float3.cross(v1, v0))
-        angle = math.acos(float3.dot(v0, v1))
-        xform_mat = float4x4.from_angle_axis(axis, angle)
-        length0 = float3.length(v0)
-        length1 = float3.length(v1)
-        check_v = float3.normalize(xform_mat.apply(v1))
-
-        print('draw_sphere([{}, {}, {}], 0.02, 255.0, 0.0, 0.0, 255)'.format(v0.x, v0.y, v0.z))
-        print('draw_sphere([{}, {}, {}], 0.02, 0.0, 255.0, 0.0, 255)'.format(v1.x, v1.y, v1.z))
-        print('draw_sphere([{}, {}, {}], 0.02, 255.0, 255.0, 0.0, 255)'.format(check_v.x, check_v.y, check_v.z))
-        '''
-
         joint_local_rotation_matrices, joint_anim_local_rotation_axis_angles = test_rig4(rig, landmark_positions)
         #output_debug_rig(rig)
 
-        
         # debug script to rotate the joints in blender 3d and set key frame every 5 frames
-        if frame_index % 5 == 0:
+        if frame_index % 2 == 0:
             print('bpy.ops.object.mode_set(mode=\'POSE\')', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
-            print('obj = bpy.data.objects[\'root\']', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+            print('obj = bpy.data.objects[\'Armature\']', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
             for key in joint_anim_local_rotation_axis_angles:
                 axis_angle = joint_anim_local_rotation_axis_angles[key]
                 
@@ -1156,8 +1184,6 @@ def main():
 
             print('\n\n\n', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
 
-        #plt.imshow(cv.cvtColor(annotated_image, cv.COLOR_BGR2RGB))
-        
         # draw annoted image
         index = 0
         annotated_image = frame.copy()
@@ -1177,7 +1203,7 @@ def main():
 
         cv.imshow('frame', annotated_image)
 
-        if frame_index >= 600:
+        if frame_index >= 250:
             break
 
         frame_index += 1
