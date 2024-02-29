@@ -1200,7 +1200,7 @@ def main():
         min_detection_confidence = 0.5, 
         min_tracking_confidence = 0.5)
 
-    cap = cv.VideoCapture('d:\\test\\mediapipe\\11.mp4')
+    cap = cv.VideoCapture('d:\\test\\mediapipe\\6.mp4')
 
     # load rig
     rig = load_rig('d:\\test\\mediapipe\\new-rig.gltf')
@@ -1309,7 +1309,7 @@ def main():
             else:
                 scaled_landmark = float3(
                     hip_pos_2d.x - 0.5,
-                    hip_pos_2d.y - 0.5,
+                    0.5 - hip_pos_2d.y,
                     hip_pos_2d.z)
             
             
