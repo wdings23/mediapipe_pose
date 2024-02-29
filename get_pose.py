@@ -12,7 +12,8 @@ from Kalman import KalmanFilter
 from conversion import gyro_transition_matrix
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
-
+from filterpy.kalman import UnscentedKalmanFilter
+import filterpy
 class float3:
     def __init__(self, x, y, z):
         self.x = x
@@ -983,7 +984,8 @@ def traverse_for_anim_matrix(
     if curr_joint.name == 'pelvis':
         
         # get hip and hip-to-shoulder vector 
-        hip_diff_normalized = float3.normalize(landmark_positions[23] - landmark_positions[24])
+        hip_diff = landmark_positions[23] - landmark_positions[24]
+        hip_diff_normalized = float3.normalize(hip_diff)
         shoulder_mid_pt = (landmark_positions[11] + landmark_positions[12]) * 0.5
         hip_mid_pt = (landmark_positions[23] + landmark_positions[24]) * 0.5
         hip_to_shoulder_normalized = float3.normalize(shoulder_mid_pt - hip_mid_pt)
@@ -1007,7 +1009,7 @@ def traverse_for_anim_matrix(
 
         axis_angle_array = float4x4.to_angle_axis(curr_joint.anim_matrix)
         local_anim_rotation_axis_angles[curr_joint.name] = [float3(axis_angle_array[1], axis_angle_array[2], axis_angle_array[3]), axis_angle_array[0]]
-    
+
     # compute the total anim matrix for the joint
     curr_joint.total_anim_matrix = float4x4.concat_matrices([
         parent_joint_total_anim_matrix,
@@ -1068,8 +1070,25 @@ def compute_joint_local_rotation_matrices2(
 ##
 def test_rig4(rig, landmark_positions):
     
+    mapping_file = open('rig_to_landmark_mappings.json', 'r')
+    rig_landmark_mapping_file_content = mapping_file.read()
+    mappings = json.loads(rig_landmark_mapping_file_content)
+    mapping_file.close()
+
     # landmark index mapping to joint name
     landmark_rig_mapping = {}
+    rig_to_landmark_pct = {}
+
+    for key in mappings['mappings']:
+        mapping = mappings['mappings'][key]
+        landmark_indices = mapping['landmark_indices'] 
+        landmark_rig_mapping[key] = landmark_indices
+        if 'rig_to_landmark_pct' in mapping:
+            pct = mapping['rig_to_landmark_pct']
+            rig_to_landmark_pct[key] = pct 
+
+    
+    '''
     landmark_rig_mapping['left_hand'] = [16]
     landmark_rig_mapping['left_forearm'] = [14]
     landmark_rig_mapping['left_upper_arm'] = [12]
@@ -1105,6 +1124,7 @@ def test_rig4(rig, landmark_positions):
     rig_to_landmark_pct['spine0'] = [1.0, 1.0, 2.0, 2.0]
     rig_to_landmark_pct['spine1'] = [2.0, 2.0, 1.0, 1.0]
     rig_to_landmark_pct['pelvis'] = [4.0, 4.0, 1.0, 1.0]
+    '''
 
     local_anim_matrix_info, local_anim_rotation_axis_angles = compute_joint_local_rotation_matrices2(
         rig = rig,
@@ -1180,7 +1200,7 @@ def main():
         min_detection_confidence = 0.5, 
         min_tracking_confidence = 0.5)
 
-    cap = cv.VideoCapture('d:\\test\\mediapipe\\8.mp4')
+    cap = cv.VideoCapture('d:\\test\\mediapipe\\11.mp4')
 
     # load rig
     rig = load_rig('d:\\test\\mediapipe\\new-rig.gltf')
@@ -1190,33 +1210,61 @@ def main():
     file.write('import bpy\n')
     file.close()
 
-    # initialize kalman filter
-    kalman_filters = [None] * 33
-    dt = 1.0 / 25.0 # frame time
-    variance = 0.13
-    for i in range(0, len(kalman_filters)):
-        kalman_filters[i] = KalmanFilter(6, 3)                          # 3 position component (x, y, z) + 3 (dx, dy, dz) 
-        kalman_filters[i].x = np.array([0., 0., 0., 0., 0., 0.])        # initial position
-        kalman_filters[i].F = np.asarray(                               # transition matrix
-            [
-                [1., 0., 0., dt, 0., 0.],
-                [0., 1., 0., 0., dt, 0.],
-                [0., 0., 1., 0., 0., dt],
-                [0., 0., 0., 1., 0., 0.],
-                [0., 0., 0., 0., 1., 0.],
-                [0., 0., 0., 0., 0., 1.]
-            ]
-        )
-        kalman_filters[i].H = np.array([                                # measurement function
-            [1., 0., 0., 0., 0., 0.],
-            [0., 1., 0., 0., 0., 0.],
-            [0., 0., 1., 0., 0., 0.]
-        ])
-        kalman_filters[i].P *= 1.0e-2                                   # covariance
-        kalman_filters[i].R = 5                                         # measurement uncertainty
-        kalman_filters[i].Q *= 1000.0
+    def hx(x):
+        return [x[0], x[1], x[2]]
 
-    last_euler = []
+    def fx(x, dt):
+        F = np.array([[1, 0, 0, dt, 0, 0],
+                      [0, 1, 0, 0, dt, 0],
+                      [0, 0, 1, 0, 0, dt],
+                      [0, 0, 0, 1, 0, 0 ],
+                      [0, 0, 0, 0, 1, 0 ],
+                      [0, 0, 0, 0, 0, 1 ]
+                    ], dtype=float)
+        return np.dot(F, x)
+
+    # initialize kalman filter
+    
+    points = filterpy.kalman.MerweScaledSigmaPoints(6, alpha=.1, beta=2., kappa=-1)
+    kalman_filters = [None] * (33 + 1)  # extra for pelvis position
+    dt = 1.0 / 25.0 # frame time
+    for i in range(0, len(kalman_filters)):
+        kalman_filters[i] = UnscentedKalmanFilter(
+            dim_x = 6, 
+            dim_z = 3, 
+            dt = dt, 
+            hx = hx,
+            fx = fx,
+            points = points)                          # 3 position component (x, y, z) + 3 (dx, dy, dz) 
+        kalman_filters[i].x = np.array([0., 0., 0., 0., 0., 0.])        # initial position
+        #kalman_filters[i].F = np.asarray(                               # transition matrix
+        #    [
+        #        [1., 0., 0., dt, 0., 0.],
+        #        [0., 1., 0., 0., dt, 0.],
+        #        [0., 0., 1., 0., 0., dt],
+        #        [0., 0., 0., 1., 0., 0.],
+        #        [0., 0., 0., 0., 1., 0.],
+        #        [0., 0., 0., 0., 0., 1.]
+        #    ]
+        #)
+        #kalman_filters[i].H = np.array([                                # measurement function
+        #    [1., 0., 0., 0., 0., 0.],
+        #    [0., 1., 0., 0., 0., 0.],
+        #    [0., 0., 1., 0., 0., 0.]
+        #])
+        z_std = 0.08                                                    # larger = more lenient
+        kalman_filters[i].P *= 1.0e-4                                  # covariance
+        kalman_filters[i].R = np.diag([z_std**2, z_std**2, z_std**2])                                        # measurement uncertainty
+        kalman_filters[i].Q *= 1.0e-4
+
+    orig_pos_x = []
+    orig_pos_y = []
+    orig_pos_z = []
+    filtered_pos_x = []
+    filtered_pos_y = []
+    filtered_pos_z = []
+
+    frame_indices = []
 
     frame_index = 0
     while cap.isOpened():
@@ -1233,9 +1281,18 @@ def main():
         if not results.pose_landmarks:
             print('!!! no valid landmarks at frame: {} !!!'.format(frame_index))
             continue
+        
+        # pelvis position
+        hip_left_2d = float3(results.pose_landmarks.landmark[24].x, results.pose_landmarks.landmark[24].y, results.pose_landmarks.landmark[24].z)
+        hip_right_2d = float3(results.pose_landmarks.landmark[23].x, results.pose_landmarks.landmark[23].y, results.pose_landmarks.landmark[23].z)
+        hip_pos_2d = (hip_left_2d + hip_right_2d) * 0.5
+
+        hip_left_3d = float3(results.pose_world_landmarks.landmark[24].x, results.pose_world_landmarks.landmark[24].y, results.pose_world_landmarks.landmark[24].z)
+        hip_right_3d = float3(results.pose_world_landmarks.landmark[23].x, results.pose_world_landmarks.landmark[23].y, results.pose_world_landmarks.landmark[23].z)
+        hip_pos_3d = (hip_left_3d + hip_right_3d) * 0.5
 
         landmark_positions = []
-        for i in range(0, len(results.pose_world_landmarks.landmark)):
+        for i in range(0, len(results.pose_world_landmarks.landmark) + 1):
             color = [0, 0, 0]
 
             if i == 23 or i == 24:
@@ -1247,7 +1304,15 @@ def main():
             elif i == 15 or i == 16:
                 color = [255, 255, 255]
 
-            scaled_landmark = float3(results.pose_world_landmarks.landmark[i].x, results.pose_world_landmarks.landmark[i].y * -1.0, results.pose_world_landmarks.landmark[i].z) 
+            if i < len(results.pose_world_landmarks.landmark):
+                scaled_landmark = float3(results.pose_world_landmarks.landmark[i].x, results.pose_world_landmarks.landmark[i].y * -1.0, results.pose_world_landmarks.landmark[i].z) 
+            else:
+                scaled_landmark = float3(
+                    hip_pos_2d.x - 0.5,
+                    hip_pos_2d.y - 0.5,
+                    hip_pos_2d.z)
+            
+            
             #landmark_positions.append(scaled_landmark)
 
             '''
@@ -1262,21 +1327,29 @@ def main():
             '''
 
             if(frame_index <= 0):
-                kalman_filters[i].x = np.array([scaled_landmark.x, scaled_landmark.y, scaled_landmark.z, 0., 0., 0.])
+                kalman_filters[i].x = np.array([scaled_landmark.x, scaled_landmark.y, scaled_landmark.z, 0.0, 0.0, 0.0])
 
             kalman_filters[i].predict()
-            landmark_positions.append(float3(kalman_filters[i].x[0], kalman_filters[i].x[1], kalman_filters[i].x[2]))
+            filtered_position = float3(kalman_filters[i].x[0], kalman_filters[i].x[1], kalman_filters[i].x[2])
+            landmark_positions.append(filtered_position)
             kalman_filters[i].update(np.array([scaled_landmark.x, scaled_landmark.y, scaled_landmark.z]))
-            print('')
+            
+            if i == 11:
+                orig_pos_x.append(scaled_landmark.x)
+                orig_pos_y.append(scaled_landmark.y)
+                orig_pos_z.append(scaled_landmark.z)
 
-        if frame_index >= 488:
-            print('')
+                filtered_pos_x.append(filtered_position.x)
+                filtered_pos_y.append(filtered_position.y)
+                filtered_pos_z.append(filtered_position.z)
+
+                frame_indices.append(frame_index)
 
         joint_local_rotation_matrices, joint_anim_local_rotation_axis_angles = test_rig4(rig, landmark_positions)
         #output_debug_rig(rig)
 
         # debug script to rotate the joints in blender 3d and set key frame every 5 frames
-        if frame_index % 3 == 0:
+        if frame_index % 1 == 0:
             print('bpy.ops.object.mode_set(mode=\'POSE\')', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
             print('obj = bpy.data.objects[\'Armature\']', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
             for key in joint_anim_local_rotation_axis_angles:
@@ -1290,8 +1363,21 @@ def main():
                     axis_angle[0].y,
                     axis_angle[0].z
                 ), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+
+                if key == 'pelvis':
+                    last_index = len(results.pose_world_landmarks.landmark)
+                    translation = rig.joint_dict['pelvis'].translation
+                    print('bone.location = ({}, {}, {})'.format(
+                        landmark_positions[last_index].x, 
+                        landmark_positions[last_index].y, 
+                        landmark_positions[last_index].z),
+                        file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+
                 print('obj.data.bones[\'{}\'].select = True'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
                 print('bone.keyframe_insert(data_path = \'rotation_axis_angle\', frame = {})'.format(frame_index + 1), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                if key == 'pelvis':
+                    print('bone.keyframe_insert(data_path = \'location\', frame = {})'.format(frame_index + 1), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                
                 print('obj.data.bones[\'{}\'].select = False'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
 
             print('\n\n\n', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
@@ -1323,6 +1409,21 @@ def main():
 
     cap.release()
     cv.destroyAllWindows()
+
+    orig_pt_x = np.array(orig_pos_x)
+    orig_pt_y = np.array(orig_pos_y)
+    filtered_pt_x = np.array(filtered_pos_x)
+    
+    plt.plot(
+        orig_pt_x,
+        marker = 'o',
+        mfc = 'r')
+
+    plt.plot(
+        filtered_pt_x)
+
+    plt.show()
+    print('')
 
 ##
 if __name__ == '__main__':

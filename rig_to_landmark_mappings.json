@@ -1,0 +1,102 @@
+{
+    "mappings": 
+    {
+        "left_hand": 
+        {
+            "landmark_indices": [16]
+        },
+        "left_forearm":
+        {
+            "landmark_indices": [14]
+        },
+        "left_upper_arm":
+        {
+            "landmark_indices": [12]
+        },
+        "left_shoulder":
+        {
+            "landmark_indices": [11, 12]
+        },
+        "right_hand": 
+        {
+            "landmark_indices": [15]
+        },
+        "right_forearm":
+        {
+            "landmark_indices": [13]
+        },
+        "right_upper_arm":
+        {
+            "landmark_indices": [11]
+        },
+        "right_shoulder":
+        {
+            "landmark_indices": [11, 12]
+        },
+        "left_thigh":
+        {
+            "landmark_indices": [24]
+        },
+        "left_leg": 
+        {
+            "landmark_indices": [26]
+        },
+        "left_ankle":
+        {
+            "landmark_indices":[28]
+        },
+        "left_foot":
+        {
+            "landmark_indices":[32]
+        },
+        "left_hip":
+        {
+            "landmark_indices":[23, 24]
+        },
+        "right_thigh":
+        {
+            "landmark_indices":[23]
+        },
+        "right_leg":
+        {
+            "landmark_indices":[25]
+        },
+        "right_ankle":
+        {
+            "landmark_indices":[27]
+        },
+        "right_foot":
+        {
+            "landmark_indices":[31]
+        },
+        "right_hip":
+        {
+            "landmark_indices":[23, 24]
+        },
+        "pelvis":
+        {
+            "landmark_indices":[23, 24, 11, 12],
+            "rig_to_landmark_pct": [4.0, 4.0, 1.0, 1.0]
+        },
+        
+        "neck":
+        {
+            "landmark_indices":[11, 12]
+        },
+        "head":
+        {
+            "landmark_indices": [9, 10, 11, 12],
+            "rig_to_landmark_pct": [1.0, 1.0, 2.0, 2.0]
+        },
+        "spine0":
+        {
+            "landmark_indices":[11, 12, 24, 23],
+            "rig_to_landmark_pct": [1.0, 1.0, 2.0, 2.0]
+        },
+        "spine1":
+        {
+            "landmark_indices":[11, 12, 24, 23],
+            "rig_to_landmark_pct": [2.0, 2.0, 1.0, 1.0]
+        }
+    }
+}
