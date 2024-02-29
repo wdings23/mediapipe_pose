@@ -8,6 +8,10 @@ from matplotlib import pyplot as plt
 import math
 import json
 import time
+from Kalman import KalmanFilter
+from conversion import gyro_transition_matrix
+from filterpy.kalman import KalmanFilter
+from filterpy.common import Q_discrete_white_noise
 
 class float3:
     def __init__(self, x, y, z):
@@ -420,6 +424,29 @@ class float4x4:
         
         return float4x4(invOut)
 
+    @staticmethod
+    def angle_axis_to_euler(axis, angle):
+        s = math.sin(angle)
+        c = math.cos(angle)
+        t = 1-c
+        
+        if ((axis.x * axis.y * t + axis.z * s) > 0.998):
+            heading = 2 * math.atan2(axis.x * math.sin(angle/2), math.cos(angle/2))
+            attitude = math.pi/2
+            bank = 0
+            return
+        
+        if ((axis.x * axis.y * t + axis.z * s) < -0.998):
+            heading = -2 * math.atan2(axis.x * math.sin(angle / 2), math.cos(angle / 2))
+            attitude = -math.pi / 2
+            bank = 0
+            return
+        
+        heading = math.atan2(axis.y * s - axis.x * axis.z * t , 1 - (axis.y * axis.y+ axis.z * axis.z ) * t)
+        attitude = math.asin(axis.x * axis.y * t + axis.z * s)
+        bank = math.atan2(axis.x * s - axis.y * axis.z * t , 1 - (axis.x * axis.x + axis.z * axis.z) * t)
+
+        return [attitude, heading, bank]
 
 ##
 class quaternion:
@@ -443,7 +470,7 @@ class quaternion:
     
     @staticmethod
     def to_angle_axis(q):
-        fDenom = math.sqrtf(1.0 - q.w * q.w)
+        fDenom = math.sqrt(1.0 - q.w * q.w)
         ret = float3(q.x, q.y, q.z)
         if fDenom > 0.00001:
             ret.x /= fDenom
@@ -499,6 +526,41 @@ class quaternion:
         afVal[15] = 1.0
         
         return float4x4(afVal)
+
+    ##
+    def normalize(self):
+        magnitude = math.sqrt(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w)
+        return quaternion(self.x / magnitude, self.y / magnitude, self.z / magnitude, self.w / magnitude)
+
+    ##
+    def to_euler(self):
+        sqw = self.w * self.w
+        sqx = self.x * self.x
+        sqy = self.y * self.y
+        sqz = self.z * self.z
+
+        ret = float3(0.0, 0.0, 0.0)
+
+        unit = sqx + sqy + sqz + sqw
+        test = self.x * self.y + self.z * self.w
+        if(test > 0.499 * unit):
+            ret.y = 2.0 * math.atan2(self.x, self.w)
+            ret.x = math.pi * 0.5
+            ret.z = 0
+
+            return ret
+        
+        if(test < -0.499 * unit):
+            ret.y = -2.0 * math.atan2(self.x, self.w)
+            ret.x = -math.pi * 0.5
+            ret.z = 0
+            return ret
+        
+        ret.y = math.atan2(2.0 * self.y * self.w - 2 * self.x * self.z, sqx - sqy - sqz + sqw)
+        ret.x = math.asin(2.0 * test / unit)
+        ret.z = math.atan2(2.0 * self.x * self.w - 2.0 * self.y * self.z, -sqx + sqy - sqz + sqw)
+
+        return ret
 
 
 class Joint:
@@ -919,26 +981,32 @@ def traverse_for_anim_matrix(
     
     # special case for rotating pelvis
     if curr_joint.name == 'pelvis':
-        # rotation in y axis
-        rotation_axis_y = float3.normalize(landmark_positions[23] - landmark_positions[24])
-        plane_v = float3(1.0, 0.0, 0.0)
-        angle_x = math.acos(float3.dot(rotation_axis_y, plane_v))
-        rotation_matrix_y = float4x4.from_angle_axis(float3(0.0, 1.0, 0.0), angle_x)
+        
+        # get hip and hip-to-shoulder vector 
+        hip_diff_normalized = float3.normalize(landmark_positions[23] - landmark_positions[24])
+        shoulder_mid_pt = (landmark_positions[11] + landmark_positions[12]) * 0.5
+        hip_mid_pt = (landmark_positions[23] + landmark_positions[24]) * 0.5
+        hip_to_shoulder_normalized = float3.normalize(shoulder_mid_pt - hip_mid_pt)
+        
+        # x, y, z angles
+        angle_x = math.atan2(-hip_to_shoulder_normalized.z, hip_to_shoulder_normalized.y)
+        angle_y = math.atan2(-hip_diff_normalized.z, hip_diff_normalized.x)
+        angle_z = math.atan2(-hip_to_shoulder_normalized.x, hip_to_shoulder_normalized.y)
 
-        # rotation in x axis
-        rotation_axis_x = float3.normalize(landmark_positions[12] - landmark_positions[24])
-        plane_v = float3(0.0, 1.0, 0.0)
-        angle_y = math.cos(float3.dot(rotation_axis_x, plane_v))
-        angle_y = 0.0
-        rotation_matrix_x = float4x4.from_angle_axis(float3(1.0, 0.0, 0.0), angle_y)
+        # rotation from angle axis
+        rotation_matrix_x = float4x4.from_angle_axis(float3(1.0, 0.0, 0.0), angle_x)
+        rotation_matrix_y = float4x4.from_angle_axis(float3(0.0, 1.0, 0.0), angle_y)
+        rotation_matrix_z = float4x4.from_angle_axis(float3(0.0, 0.0, 1.0), angle_z)
 
+        # total rotation matrix
         curr_joint.anim_matrix = float4x4.concat_matrices([
+            rotation_matrix_z,
             rotation_matrix_y,
             rotation_matrix_x
         ])
 
         axis_angle_array = float4x4.to_angle_axis(curr_joint.anim_matrix)
-        local_anim_rotation_axis_angles[curr_joint.name] = [float3(axis_angle_array[0], axis_angle_array[1], axis_angle_array[2]), axis_angle_array[3]]
+        local_anim_rotation_axis_angles[curr_joint.name] = [float3(axis_angle_array[1], axis_angle_array[2], axis_angle_array[3]), axis_angle_array[0]]
     
     # compute the total anim matrix for the joint
     curr_joint.total_anim_matrix = float4x4.concat_matrices([
@@ -1000,6 +1068,7 @@ def compute_joint_local_rotation_matrices2(
 ##
 def test_rig4(rig, landmark_positions):
     
+    # landmark index mapping to joint name
     landmark_rig_mapping = {}
     landmark_rig_mapping['left_hand'] = [16]
     landmark_rig_mapping['left_forearm'] = [14]
@@ -1030,6 +1099,7 @@ def test_rig4(rig, landmark_positions):
     landmark_rig_mapping['spine0'] = [11, 12, 24, 23]
     landmark_rig_mapping['spine1'] = [11, 12, 24, 23]
 
+    # scale values to the different positions used tp calculate the landmark position for the joint 
     rig_to_landmark_pct = {}
     rig_to_landmark_pct['head'] = [1.0, 1.0, 2.0, 2.0]
     rig_to_landmark_pct['spine0'] = [1.0, 1.0, 2.0, 2.0]
@@ -1110,7 +1180,7 @@ def main():
         min_detection_confidence = 0.5, 
         min_tracking_confidence = 0.5)
 
-    cap = cv.VideoCapture('d:\\test\\mediapipe\\4.mp4')
+    cap = cv.VideoCapture('d:\\test\\mediapipe\\8.mp4')
 
     # load rig
     rig = load_rig('d:\\test\\mediapipe\\new-rig.gltf')
@@ -1120,12 +1190,43 @@ def main():
     file.write('import bpy\n')
     file.close()
 
+    # initialize kalman filter
+    kalman_filters = [None] * 33
+    dt = 1.0 / 25.0 # frame time
+    variance = 0.13
+    for i in range(0, len(kalman_filters)):
+        kalman_filters[i] = KalmanFilter(6, 3)                          # 3 position component (x, y, z) + 3 (dx, dy, dz) 
+        kalman_filters[i].x = np.array([0., 0., 0., 0., 0., 0.])        # initial position
+        kalman_filters[i].F = np.asarray(                               # transition matrix
+            [
+                [1., 0., 0., dt, 0., 0.],
+                [0., 1., 0., 0., dt, 0.],
+                [0., 0., 1., 0., 0., dt],
+                [0., 0., 0., 1., 0., 0.],
+                [0., 0., 0., 0., 1., 0.],
+                [0., 0., 0., 0., 0., 1.]
+            ]
+        )
+        kalman_filters[i].H = np.array([                                # measurement function
+            [1., 0., 0., 0., 0., 0.],
+            [0., 1., 0., 0., 0., 0.],
+            [0., 0., 1., 0., 0., 0.]
+        ])
+        kalman_filters[i].P *= 1.0e-2                                   # covariance
+        kalman_filters[i].R = 5                                         # measurement uncertainty
+        kalman_filters[i].Q *= 1000.0
+
+    last_euler = []
+
     frame_index = 0
     while cap.isOpened():
 
         # read frame of movie
         ret, frame = cap.read()
         
+        if ret == False:
+            break
+
         # process for landmarks
         results = pose.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
 
@@ -1147,7 +1248,7 @@ def main():
                 color = [255, 255, 255]
 
             scaled_landmark = float3(results.pose_world_landmarks.landmark[i].x, results.pose_world_landmarks.landmark[i].y * -1.0, results.pose_world_landmarks.landmark[i].z) 
-            landmark_positions.append(scaled_landmark)
+            #landmark_positions.append(scaled_landmark)
 
             '''
             print('draw_sphere([{}, {}, {}], 0.02, {}, {}, {}, 255) # {}'.format(
@@ -1160,11 +1261,22 @@ def main():
                     i))
             '''
 
+            if(frame_index <= 0):
+                kalman_filters[i].x = np.array([scaled_landmark.x, scaled_landmark.y, scaled_landmark.z, 0., 0., 0.])
+
+            kalman_filters[i].predict()
+            landmark_positions.append(float3(kalman_filters[i].x[0], kalman_filters[i].x[1], kalman_filters[i].x[2]))
+            kalman_filters[i].update(np.array([scaled_landmark.x, scaled_landmark.y, scaled_landmark.z]))
+            print('')
+
+        if frame_index >= 488:
+            print('')
+
         joint_local_rotation_matrices, joint_anim_local_rotation_axis_angles = test_rig4(rig, landmark_positions)
         #output_debug_rig(rig)
 
         # debug script to rotate the joints in blender 3d and set key frame every 5 frames
-        if frame_index % 2 == 0:
+        if frame_index % 3 == 0:
             print('bpy.ops.object.mode_set(mode=\'POSE\')', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
             print('obj = bpy.data.objects[\'Armature\']', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
             for key in joint_anim_local_rotation_axis_angles:
@@ -1190,20 +1302,19 @@ def main():
         bg_image = np.zeros(frame.shape, dtype = np.uint8)
         annotated_image = np.where(True, annotated_image, bg_image)
         mp_drawing.draw_landmarks(
-            annotated_image,
-            results.pose_landmarks,
-            mp_pose.POSE_CONNECTIONS,
-            landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
-        #cv.imwrite('d:\\test\\mediapipe\\annotated_image' + str(index) + '.png', annotated_image)
-        
+             annotated_image,
+             results.pose_landmarks,
+             mp_pose.POSE_CONNECTIONS,
+             landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
+        # cv.imwrite('d:\\test\\mediapipe\\annotated_image' + str(index) + '.png', annotated_image)
+        cv.imshow('frame', annotated_image)
+
         # back to identity since we're traversing the entire rig every frame for the animation matrices
         for joint in rig.joints:
             joint.total_anim_matrix.identity()
             joint.anim_matrix.identity()
 
-        cv.imshow('frame', annotated_image)
-
-        if frame_index >= 250:
+        if frame_index >= 600:
             break
 
         frame_index += 1
