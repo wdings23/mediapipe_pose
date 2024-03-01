@@ -8,7 +8,7 @@
 		{
 			"name":"Scene",
 			"nodes":[
-				23
+				25
 			]
 		}
 	],
@@ -39,16 +39,38 @@
 			]
 		},
 		{
-			"name":"left_hand",
+			"name":"left_fingers",
 			"rotation":[
-				1.8775854204733378e-09,
-				-6.827204401815834e-08,
-				-0.035107798874378204,
-				0.9993835687637329
+				-9.795144251256716e-08,
+				3.070273146832392e-09,
+				-0.023883230984210968,
+				0.999714732170105
 			],
 			"scale":[
 				0.9999999403953552,
 				0.9999999403953552,
+				1
+			],
+			"translation":[
+				-1.2107152613793914e-08,
+				0.05472505837678909,
+				-1.4988010832439613e-14
+			]
+		},
+		{
+			"children":[
+				2
+			],
+			"name":"left_hand",
+			"rotation":[
+				3.220138822257468e-08,
+				-8.622992453410916e-08,
+				-0.08544326573610306,
+				0.9963430166244507
+			],
+			"scale":[
+				0.9999998807907104,
+				1,
 				1
 			],
 			"translation":[
@@ -59,7 +81,7 @@
 		},
 		{
 			"children":[
-				2
+				3
 			],
 			"name":"left_forearm",
 			"rotation":[
@@ -76,7 +98,7 @@
 		},
 		{
 			"children":[
-				3
+				4
 			],
 			"name":"left_upper_arm",
 			"rotation":[
@@ -98,7 +120,7 @@
 		},
 		{
 			"children":[
-				4
+				5
 			],
 			"name":"left_shoulder",
 			"rotation":[
@@ -114,16 +136,38 @@
 			]
 		},
 		{
-			"name":"right_hand",
+			"name":"right_fingers",
 			"rotation":[
-				1.8775854204733378e-09,
-				6.827204401815834e-08,
-				0.035107798874378204,
-				0.9993835687637329
+				-9.795144251256716e-08,
+				-3.070273146832392e-09,
+				0.023883230984210968,
+				0.999714732170105
 			],
 			"scale":[
 				0.9999999403953552,
 				0.9999999403953552,
+				1
+			],
+			"translation":[
+				1.2107152613793914e-08,
+				0.05472505837678909,
+				-1.4988010832439613e-14
+			]
+		},
+		{
+			"children":[
+				7
+			],
+			"name":"right_hand",
+			"rotation":[
+				3.220138822257468e-08,
+				8.622992453410916e-08,
+				0.08544326573610306,
+				0.9963430166244507
+			],
+			"scale":[
+				0.9999998807907104,
+				1,
 				1
 			],
 			"translation":[
@@ -134,7 +178,7 @@
 		},
 		{
 			"children":[
-				6
+				8
 			],
 			"name":"right_forearm",
 			"rotation":[
@@ -151,7 +195,7 @@
 		},
 		{
 			"children":[
-				7
+				9
 			],
 			"name":"right_upper_arm",
 			"rotation":[
@@ -173,7 +217,7 @@
 		},
 		{
 			"children":[
-				8
+				10
 			],
 			"name":"right_shoulder",
 			"rotation":[
@@ -191,8 +235,8 @@
 		{
 			"children":[
 				1,
-				5,
-				9
+				6,
+				11
 			],
 			"name":"spine1",
 			"translation":[
@@ -203,7 +247,7 @@
 		},
 		{
 			"children":[
-				10
+				12
 			],
 			"name":"spine0",
 			"translation":[
@@ -233,7 +277,7 @@
 		},
 		{
 			"children":[
-				12
+				14
 			],
 			"name":"left_foot",
 			"rotation":[
@@ -255,7 +299,7 @@
 		},
 		{
 			"children":[
-				13
+				15
 			],
 			"name":"left_leg",
 			"rotation":[
@@ -272,7 +316,7 @@
 		},
 		{
 			"children":[
-				14
+				16
 			],
 			"name":"left_thigh",
 			"rotation":[
@@ -289,7 +333,7 @@
 		},
 		{
 			"children":[
-				15
+				17
 			],
 			"name":"left_hips",
 			"rotation":[
@@ -325,7 +369,7 @@
 		},
 		{
 			"children":[
-				17
+				19
 			],
 			"name":"right_foot",
 			"rotation":[
@@ -347,7 +391,7 @@
 		},
 		{
 			"children":[
-				18
+				20
 			],
 			"name":"right_leg",
 			"rotation":[
@@ -364,7 +408,7 @@
 		},
 		{
 			"children":[
-				19
+				21
 			],
 			"name":"right_thigh",
 			"rotation":[
@@ -381,7 +425,7 @@
 		},
 		{
 			"children":[
-				20
+				22
 			],
 			"name":"right_hips",
 			"rotation":[
@@ -398,9 +442,9 @@
 		},
 		{
 			"children":[
-				11,
-				16,
-				21
+				13,
+				18,
+				23
 			],
 			"name":"pelvis",
 			"translation":[
@@ -411,7 +455,7 @@
 		},
 		{
 			"children":[
-				22
+				24
 			],
 			"name":"Armature"
 		}
@@ -420,29 +464,31 @@
 		{
 			"inverseBindMatrices":0,
 			"joints":[
-				22,
-				11,
-				10,
+				24,
+				13,
+				12,
 				1,
 				0,
+				6,
 				5,
 				4,
 				3,
 				2,
+				11,
+				10,
 				9,
 				8,
 				7,
-				6,
+				18,
+				17,
 				16,
 				15,
 				14,
-				13,
-				12,
+				23,
+				22,
 				21,
 				20,
-				19,
-				18,
-				17
+				19
 			],
 			"name":"Armature"
 		}
@@ -451,21 +497,21 @@
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":23,
+			"count":25,
 			"type":"MAT4"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":1472,
+			"byteLength":1600,
 			"byteOffset":0
 		}
 	],
 	"buffers":[
 		{
-			"byteLength":1472,
-			"uri":"data:application/octet-stream;base64,AACAPwAAAIAAAAAAAAAAgAAAAIAAAIA/AAAAgAAAAAAAAAAAAAAAgAAAgD8AAACAAAAAgOAsmLsAAACAAACAPwAAgD8AAACAAAAAAAAAAIAAAACAAACAPwAAAIAAAAAAAAAAAAAAAIAAAIA/AAAAgAAAAIAwLxi+AAAAgAAAgD8AAIA/AAAAgAAAAAAAAACAAAAAgAAAgD8AAACAAAAAAAAAAAAAAACAAACAPwAAAIAAAACAwEGovgAAAIAAAIA/AACAPwAAAIAAAAAAAAAAgAAAAIAAAIA/AAAAgAAAAAAAAAAAAAAAgAAAgD8AAACAAAAAgL4A+r4AAACAAACAPwAAgD8AAACAAAAAAAAAAIAAAACAEmRkP9ZJ5z4AAAAAAAAAANZJ574SZGQ/AAAAgAAAAAA6DAu/08+MvgAAgD/ZYoc8Dfd/vwURIbEAAACADfd/P8BihzwJuv+xAAAAgOiCADKIlxixAACAPwAAAIAB+Pm+1DYEvGu8eTEAAIA/sXNpv1Eb0r4OCac0AAAAgFAb0j6xc2m/IBXCsQAAAABOkZk0Vo8DNAAAgD8AAACAnq6/vnymvT4raYUzAACAP6mOb78yibS+ZjDbNAAAAIAxibQ+qY5vv59ap7IAAAAAgczQNCIABzQAAIA/AAAAgM0+vL7RpfM9uJfLMwAAgD/ooWi/I7bVvpvODzUAAACAIrbVPuihaL9UXJOzAAAAAHpeCjX8JS00AACAPwAAAIAUw7e+ybAMvkmYGzQAAIA/2WKHPA33fz8FESExAAAAgA33f7/AYoc8Cbr/sQAAAADoggCyiJcYsQAAgD8AAACAAfj5PtQ2BLxrvHkxAACAP7Fzab9RG9I+DgmntAAAAIBQG9K+sXNpvyAVwrEAAAAATpGZtFaPAzQAAIA/AAAAgJ6uvz58pr0+K2mFMwAAgD+pjm+/Mom0PmYw27QAAACAMYm0vqmOb7+fWqeyAAAAAIHM0LQiAAc0AACAPwAAAIDNPrw+0aXzPbiXyzMAAIA/6KFovyO21T6bzg+1AAAAgCK21b7ooWi/VFyTswAAAAB6Xgq1/CUtNAAAgD8AAACAFMO3PsmwDL5JmBs0AACAPxA6vbEson+/VR1bvQAAAAAeqRyzVh1bvSqifz8AAAAAAQCAv40uk7O2chuzAAAAgL8/Oi/UP4I5GPWXuwAAgD/JRA20N1govlKEfL8AAAAAn3Hxs1CEfL82WCg+AAAAAAEAgL8BWPkzEFkfMwAAAIDtmYOyDiOzvD9P9b0AAIA/MEmNtPDcHb6N8Hy/AAAAAOVayLOL8Hy/79wdPgAAAAABAIC/YXn7M5LoNzQAAACAjDMLs5dL176GQP69AACAP8fiLj47wiS+ZNp4vwAAAIDQITU/laQqv45FcD4AAAAAMIsvv4pVOr8BACg0AAAAAAGrFz+R4g6/JP5rvQAAgD9IoLA+3cOhvkVDYr8AAACA++9sP6OMLL1Qq8A+AAAAAIDfH766pXK/ZkeOPgAAAACk6l4/DRpOvko14z0AAIA/EDq9sSyifz9VHVs9AAAAgB6pHDNWHVu9KqJ/PwAAAAABAIA/jS6Ts7ZyG7MAAACAvz86r9Q/gjkY9Ze7AACAP8lEDbQ3WCg+UoR8PwAAAICfcfEzUIR8vzZYKD4AAACAAQCAPwFY+TMQWR8zAAAAgO2ZgzIOI7O8P0/1vQAAgD8wSY208NwdPo3wfD8AAACA5VrIM4vwfL/v3B0+AAAAgAEAgD9hefszkug3NAAAAICMMwszl0vXvoZA/r0AAIA/x+IuPjvCJD5k2ng/AAAAgNAhNb+VpCq/jkVwPgAAAAAwiy8/ilU6vwEAKDQAAACAAasXv5HiDr8k/mu9AACAP0igsD7dw6E+RUNiPwAAAID772y/o4wsvVCrwD4AAAAAgN8fPrqlcr9mR44+AAAAgKTqXr8NGk6+SjXjPQAAgD8="
+			"byteLength":1600,
+			"uri":"data:application/octet-stream;base64,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"
 		}
 	]
 }

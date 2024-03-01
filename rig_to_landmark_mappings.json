@@ -17,6 +17,10 @@
         {
             "landmark_indices": [11, 12]
         },
+        "left_fingers":
+        {
+            "landmark_indices": [20]
+        },
         "right_hand": 
         {
             "landmark_indices": [15]
@@ -32,6 +36,10 @@
         "right_shoulder":
         {
             "landmark_indices": [11, 12]
+        },
+        "right_fingers":
+        {
+            "landmark_indices": [19]
         },
         "left_thigh":
         {
