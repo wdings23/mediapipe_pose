@@ -14,6 +14,8 @@ from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 from filterpy.kalman import UnscentedKalmanFilter
 import filterpy
+import socket
+
 class float3:
     def __init__(self, x, y, z):
         self.x = x
@@ -860,10 +862,6 @@ def compute_joint_local_rotation_anim_matrix(
     verify_distance = float3.length(verify_joint_position - landmark_joint_position)
     assert(verify_distance <= 1.0e-6)
 
-    #print('draw_sphere([{}, {}, {}], 0.02, 255.0, 255.0, 0.0, 255) # {} verify joint position'.format(
-    #    verify_joint_position.x, verify_joint_position.y, verify_joint_position.z,
-    #    curr_joint.name))
-
     new_joint_matrix2 = float4x4.concat_matrices([
         parent_joint.total_anim_matrix,
         local_rotation_matrix,
@@ -875,10 +873,6 @@ def compute_joint_local_rotation_anim_matrix(
         float3.normalize(landmark_joint_position - parent_joint_position)
     )
     assert((verify_dp2 - 1.0) * (verify_dp2 - 1.0)  <= 1.0e-6)
-
-    #print('draw_sphere([{}, {}, {}], 0.02, 0.0, 0.0, 255.0, 255) # {} verify joint position'.format(
-    #    verify_joint_position2.x, verify_joint_position2.y, verify_joint_position2.z,
-    #    curr_joint.name))
 
     return local_rotation_matrix, local_rotation_axis_normalized, local_rotation_angle
 
@@ -1087,45 +1081,6 @@ def test_rig4(rig, landmark_positions):
             pct = mapping['rig_to_landmark_pct']
             rig_to_landmark_pct[key] = pct 
 
-    
-    '''
-    landmark_rig_mapping['left_hand'] = [16]
-    landmark_rig_mapping['left_forearm'] = [14]
-    landmark_rig_mapping['left_upper_arm'] = [12]
-    landmark_rig_mapping['left_shoulder'] = [11, 12]
-
-    landmark_rig_mapping['right_hand'] = [15]
-    landmark_rig_mapping['right_forearm'] = [13]
-    landmark_rig_mapping['right_upper_arm'] = [11]
-    landmark_rig_mapping['right_shoulder'] = [11, 12]
-
-    landmark_rig_mapping['left_thigh'] = [24]
-    landmark_rig_mapping['left_leg'] = [26]
-    landmark_rig_mapping['left_ankle'] = [28]
-    landmark_rig_mapping['left_foot'] = [32]
-    landmark_rig_mapping['left_hip'] = [23, 24]
-
-    landmark_rig_mapping['right_thigh'] = [23]
-    landmark_rig_mapping['right_leg'] = [25]
-    landmark_rig_mapping['right_ankle'] = [27]
-    landmark_rig_mapping['right_foot'] = [31]
-    landmark_rig_mapping['right_hip'] = [23, 24]
-
-    landmark_rig_mapping['pelvis'] = [23, 24, 11, 12]
-
-    landmark_rig_mapping['neck'] = [11, 12]
-    landmark_rig_mapping['head'] = [9, 10, 11, 12]
-    landmark_rig_mapping['spine0'] = [11, 12, 24, 23]
-    landmark_rig_mapping['spine1'] = [11, 12, 24, 23]
-
-    # scale values to the different positions used tp calculate the landmark position for the joint 
-    rig_to_landmark_pct = {}
-    rig_to_landmark_pct['head'] = [1.0, 1.0, 2.0, 2.0]
-    rig_to_landmark_pct['spine0'] = [1.0, 1.0, 2.0, 2.0]
-    rig_to_landmark_pct['spine1'] = [2.0, 2.0, 1.0, 1.0]
-    rig_to_landmark_pct['pelvis'] = [4.0, 4.0, 1.0, 1.0]
-    '''
-
     local_anim_matrix_info, local_anim_rotation_axis_angles = compute_joint_local_rotation_matrices2(
         rig = rig,
         landmark_positions = landmark_positions,
@@ -1189,6 +1144,37 @@ def output_debug_rig(
             color.z * 255.0,
             joint.name))
 
+def show_orig_and_filtered_position_plot(
+    plt, 
+    orig_pos_x, 
+    orig_pos_y, 
+    orig_pos_z,
+    filtered_pos_x,
+    filtered_pos_y,
+    filtered_pos_z):
+        
+    orig_pt_x = np.array(orig_pos_x)
+    orig_pt_y = np.array(orig_pos_y)
+    orig_pt_z = np.array(orig_pos_z)
+    filtered_pt_x = np.array(filtered_pos_x)
+    filtered_pt_y = np.array(filtered_pos_y)
+    filtered_pt_z = np.array(filtered_pos_z)
+
+    plt.plot(
+        orig_pt_x,
+        marker = 'o',
+        mfc = 'r')
+
+    plt.plot(
+        filtered_pt_x)
+
+    plt.plot(orig_pt_y, marker = 'o', mfc = 'g')
+    plt.plot(filtered_pt_y)
+
+    plt.plot(orig_pt_z, marker = 'o', mfc = 'b')
+    plt.plot(filtered_pt_z)
+
+    plt.show()
 
 ##
 def main():
@@ -1200,13 +1186,13 @@ def main():
         min_detection_confidence = 0.5, 
         min_tracking_confidence = 0.5)
 
-    cap = cv.VideoCapture('d:\\test\\mediapipe\\6.mp4')
+    cap = cv.VideoCapture('8.mp4')
 
     # load rig
-    rig = load_rig('d:\\test\\mediapipe\\new-rig.gltf')
+    rig = load_rig('new-rig.gltf')
 
     # reset key-frame file
-    file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'w')
+    file = open('blender-key-frames.py', 'w')
     file.write('import bpy\n')
     file.close()
 
@@ -1252,7 +1238,7 @@ def main():
         #    [0., 1., 0., 0., 0., 0.],
         #    [0., 0., 1., 0., 0., 0.]
         #])
-        z_std = 0.08                                                    # larger = more lenient
+        z_std = 0.02 # 0.08                                                    # larger = more lenient
         kalman_filters[i].P *= 1.0e-4                                  # covariance
         kalman_filters[i].R = np.diag([z_std**2, z_std**2, z_std**2])                                        # measurement uncertainty
         kalman_filters[i].Q *= 1.0e-4
@@ -1267,6 +1253,7 @@ def main():
     frame_indices = []
 
     frame_index = 0
+    frame = None
     while cap.isOpened():
 
         # read frame of movie
@@ -1310,7 +1297,7 @@ def main():
                 scaled_landmark = float3(
                     hip_pos_2d.x - 0.5,
                     0.5 - hip_pos_2d.y,
-                    hip_pos_2d.z)
+                    hip_pos_3d.z)
             
             
             #landmark_positions.append(scaled_landmark)
@@ -1346,10 +1333,11 @@ def main():
                 frame_indices.append(frame_index)
 
         joint_local_rotation_matrices, joint_anim_local_rotation_axis_angles = test_rig4(rig, landmark_positions)
-        #output_debug_rig(rig)
-
+        
         # debug script to rotate the joints in blender 3d and set key frame every 5 frames
         if frame_index % 1 == 0:
+            total_script = 'import bpy\nbpy.ops.object.mode_set(mode=\'POSE\')\nobj = bpy.data.objects[\'Armature\']\n'
+
             print('bpy.ops.object.mode_set(mode=\'POSE\')', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
             print('obj = bpy.data.objects[\'Armature\']', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
             for key in joint_anim_local_rotation_axis_angles:
@@ -1364,6 +1352,14 @@ def main():
                     axis_angle[0].z
                 ), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
 
+                total_script += 'bone = obj.pose.bones[\'{}\']\n'.format(key)
+                total_script += 'bone.rotation_mode = \'AXIS_ANGLE\'\n'
+                total_script += 'bone.rotation_axis_angle = [{}, {}, {}, {}]\n'.format(
+                    axis_angle[1],
+                    axis_angle[0].x,
+                    axis_angle[0].y,
+                    axis_angle[0].z)
+
                 if key == 'pelvis':
                     last_index = len(results.pose_world_landmarks.landmark)
                     translation = rig.joint_dict['pelvis'].translation
@@ -1373,12 +1369,23 @@ def main():
                         landmark_positions[last_index].z),
                         file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
 
+                    total_script += 'bone.location = ({}, {}, {})\n'.format(
+                        landmark_positions[last_index].x, 
+                        landmark_positions[last_index].y, 
+                        landmark_positions[last_index].z)
+
                 print('obj.data.bones[\'{}\'].select = True'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
                 print('bone.keyframe_insert(data_path = \'rotation_axis_angle\', frame = {})'.format(frame_index + 1), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
-                if key == 'pelvis':
-                    print('bone.keyframe_insert(data_path = \'location\', frame = {})'.format(frame_index + 1), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
                 
+                total_script += 'obj.data.bones[\'{}\'].select = True\n'
+                total_script += 'bone.keyframe_insert(data_path = \'rotation_axis_angle\', frame = {})\n'.format(frame_index + 1)
+
+                if key == 'pelvis':
+                    print('bone.keyframe_insert(data_path = \'location\', frame = {})\n'.format(frame_index + 1), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                    total_script += 'bone.keyframe_insert(data_path = \'location\', frame = {})\n'.format(frame_index + 1)
+
                 print('obj.data.bones[\'{}\'].select = False'.format(key), file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
+                total_script += 'obj.data.bones[\'{}\'].select = False\n'.format(key)
 
             print('\n\n\n', file = open('d:\\test\\mediapipe\\blender-key-frames.py', 'a'))
 
@@ -1392,7 +1399,6 @@ def main():
              results.pose_landmarks,
              mp_pose.POSE_CONNECTIONS,
              landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
-        # cv.imwrite('d:\\test\\mediapipe\\annotated_image' + str(index) + '.png', annotated_image)
         cv.imshow('frame', annotated_image)
 
         # back to identity since we're traversing the entire rig every frame for the animation matrices
@@ -1400,30 +1406,20 @@ def main():
             joint.total_anim_matrix.identity()
             joint.anim_matrix.identity()
 
-        if frame_index >= 600:
-            break
-
         frame_index += 1
         key = cv.waitKey(1)
-
 
     cap.release()
     cv.destroyAllWindows()
 
-    orig_pt_x = np.array(orig_pos_x)
-    orig_pt_y = np.array(orig_pos_y)
-    filtered_pt_x = np.array(filtered_pos_x)
-    
-    plt.plot(
-        orig_pt_x,
-        marker = 'o',
-        mfc = 'r')
-
-    plt.plot(
-        filtered_pt_x)
-
-    plt.show()
-    print('')
+    show_orig_and_filtered_position_plot(
+        plt = plt, 
+        orig_pos_x = orig_pos_x, 
+        orig_pos_y = orig_pos_y, 
+        orig_pos_z = orig_pos_z,
+        filtered_pos_x = filtered_pos_x,
+        filtered_pos_y = filtered_pos_y,
+        filtered_pos_z = filtered_pos_z)    
 
 ##
 if __name__ == '__main__':
